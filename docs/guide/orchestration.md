@@ -247,6 +247,10 @@ Junior doesn't need to be the smartest - it needs to be reliable. With:
 
 Even a mid-tier model executes precisely. The intelligence is in the **system**, not individual agents.
 
+**GPT-backed local override note:**
+
+If you move Junior-facing execution onto a general-purpose GPT family model such as `openai/gpt-5.4`, prefer `variant: "medium"` over `variant: "none"` for Atlas and worker categories unless you intentionally want near-zero reasoning. In local OMO, category-based `task(...)` work resolves to Sisyphus-Junior, and those tasks still need lightweight judgment for plan-following, verification, and small edge-case handling.
+
 ### System Reminder Mechanism
 
 The hook system ensures Junior never stops halfway:

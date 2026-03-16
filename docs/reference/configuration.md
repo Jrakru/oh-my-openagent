@@ -164,6 +164,13 @@ Disable agents entirely: `{ "disabled_agents": ["oracle", "multimodal-looker"] }
 | `textVerbosity` | string | Text verbosity: `low`, `medium`, `high` |
 | `providerOptions` | object | Provider-specific options |
 
+For GPT-family overrides, treat `variant` and `reasoningEffort` as different layers:
+
+- OMO accepts `variant` as a freeform model hint and forwards it through category and agent resolution.
+- OMO's validated `reasoningEffort` field is stricter: `low`, `medium`, `high`, `xhigh`.
+- If your downstream OpenCode/OpenAI bridge interprets `variant: "none"` as "no or minimal reasoning," that behavior is preserved rather than corrected by OMO.
+- For Atlas or category-driven Sisyphus-Junior work, `variant: "medium"` is usually a safer default than `none`.
+
 #### Anthropic Extended Thinking
 
 ```json
@@ -238,6 +245,8 @@ Domain-specific model delegation used by the `task()` tool. When Sisyphus delega
 | `is_unstable_agent` | boolean | `false` | Force background mode + monitoring. Auto-enabled for Gemini models. |
 
 Disable categories: `{ "disabled_categories": ["ultrabrain"] }`
+
+When a category is routed to a general-purpose GPT model for plan execution, prefer `variant: "medium"` unless you intentionally want almost no reasoning. Category-based `task(...)` execution typically lands on Sisyphus-Junior, which still benefits from lightweight local judgment.
 
 ### Model Resolution
 

@@ -152,6 +152,24 @@ When agents delegate work, they don't pick a model name — they pick a **catego
 | `unspecified-low` | General standard work | Claude Sonnet → GPT-5.3 Codex → Gemini Flash |
 | `writing` | Text, docs, prose | Gemini Flash → Claude Sonnet |
 
+If you override these categories to a general-purpose GPT model for Atlas or Sisyphus-Junior execution, `medium` is usually the safer baseline than `none`. `none` can collapse local judgment in downstream GPT runtimes, which is usually too weak for "follow the plan, verify the result" work.
+
+### Local Override Note
+
+In this local setup, lightweight Spark-backed execution has been split by role instead of replaced wholesale.
+
+Current local pattern:
+
+- `sisyphus-junior`, `quick`, `writing`, and other bounded worker paths use `openrouter/openrouter/hunter-alpha`
+- `librarian` uses `openai/gpt-5.4` with `medium`
+- `explore` uses `openai/gpt-5.4` with `low`
+
+Reason:
+
+- the local benchmark suite showed Hunter Alpha as a better latency / instruction-following compromise than Spark for narrow worker roles
+- live OpenCode logs showed Hunter Alpha behaving badly at the final synthesis step for `librarian` and `explore`, including repeated reasoning loops and capped `32768`-token final steps with missing normal text parts
+- GPT-5.4 remained the safer choice for research-heavy agents that must synthesize tool results into a stable answer
+
 See the [Orchestration System Guide](./orchestration.md) for how agents dispatch tasks to categories.
 
 ---
@@ -206,12 +224,14 @@ Run `opencode models` to see available models, `opencode auth login` to authenti
 - Sisyphus: Opus → Sonnet, Kimi K2.5, GLM 5 (all communicative models)
 - Prometheus: Opus → GPT-5.2 (auto-switches to GPT prompt)
 - Atlas: Kimi K2.5 → Sonnet, GPT-5.2 (auto-switches to GPT prompt)
+- GPT-backed worker categories: use `medium` before trying `none` if the worker still needs plan-following judgment
 
 **Dangerous** — personality mismatch:
 - Sisyphus → GPT: **No GPT prompt exists. Will degrade significantly.**
 - Hephaestus → Claude: **Built for Codex's autonomous style. Claude can't replicate this.**
 - Explore → Opus: **Massive cost waste. Explore needs speed, not intelligence.**
 - Librarian → Opus: **Same. Doc search doesn't need Opus-level reasoning.**
+- GPT general-purpose workers with `variant: "none"`: **Often too literal for Atlas/Junior execution unless you explicitly want almost no reasoning.**
 
 ### How Model Resolution Works
 
