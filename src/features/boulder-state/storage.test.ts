@@ -6,6 +6,7 @@ import {
   readBoulderState,
   writeBoulderState,
   appendSessionId,
+  appendAtlasPlanOverride,
   clearBoulderState,
   getPlanProgress,
   getPlanName,
@@ -133,6 +134,7 @@ describe("boulder-state", () => {
       expect(result?.active_plan).toBe("/path/to/plan.md")
       expect(result?.session_ids).toEqual(["session-1", "session-2"])
       expect(result?.plan_name).toBe("my-plan")
+      expect(result?.atlas_overrides).toEqual([])
     })
   })
 
@@ -217,6 +219,36 @@ describe("boulder-state", () => {
       //#then - should not crash and should contain the new session
       expect(result).not.toBeNull()
       expect(result!.session_ids).toContain("ses-new")
+    })
+  })
+
+  describe("appendAtlasPlanOverride", () => {
+    test("should append structured override record to boulder state", () => {
+      const state: BoulderState = {
+        active_plan: "/plan.md",
+        started_at: "2026-01-02T10:00:00Z",
+        session_ids: ["session-1"],
+        plan_name: "plan",
+        atlas_overrides: [],
+      }
+      writeBoulderState(TEST_DIR, state)
+
+      const result = appendAtlasPlanOverride(TEST_DIR, {
+        created_at: "2026-03-16T00:00:00Z",
+        planned_task_id: "1",
+        planned_task_title: "API",
+        prompt_task_id: "2",
+        planned_category: "unspecified-high",
+        actual_category: "deep",
+        planned_wave: "Wave 1",
+        actual_wave: "Wave 2",
+        reason: "manual override",
+        correction_injected: true,
+      })
+
+      expect(result?.atlas_overrides).toHaveLength(1)
+      expect(result?.atlas_overrides?.[0]?.planned_task_id).toBe("1")
+      expect(result?.atlas_overrides?.[0]?.correction_injected).toBe(true)
     })
   })
 

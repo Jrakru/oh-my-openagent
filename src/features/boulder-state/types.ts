@@ -5,6 +5,19 @@
  * Named after Sisyphus's boulder - the eternal task that must be rolled.
  */
 
+export interface AtlasPlanOverrideRecord {
+  created_at: string
+  planned_task_id: string
+  planned_task_title: string
+  prompt_task_id?: string
+  planned_category?: string
+  actual_category?: string
+  planned_wave?: string
+  actual_wave?: string
+  reason: string
+  correction_injected?: boolean
+}
+
 export interface BoulderState {
   /** Absolute path to the active plan file */
   active_plan: string
@@ -18,6 +31,8 @@ export interface BoulderState {
   agent?: string
   /** Absolute path to the git worktree root where work happens */
   worktree_path?: string
+  /** Structured Atlas override records for this active plan */
+  atlas_overrides?: AtlasPlanOverrideRecord[]
 }
 
 export interface PlanProgress {

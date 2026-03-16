@@ -6,7 +6,7 @@
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from "node:fs"
 import { dirname, join, basename } from "node:path"
-import type { BoulderState, PlanProgress } from "./types"
+import type { AtlasPlanOverrideRecord, BoulderState, PlanProgress } from "./types"
 import { BOULDER_DIR, BOULDER_FILE, PROMETHEUS_PLANS_DIR } from "./constants"
 import { readPlanExecutionSummary } from "./plan-contract"
 
@@ -29,6 +29,9 @@ export function readBoulderState(directory: string): BoulderState | null {
     }
     if (!Array.isArray(parsed.session_ids)) {
       parsed.session_ids = []
+    }
+    if (!Array.isArray(parsed.atlas_overrides)) {
+      parsed.atlas_overrides = []
     }
     return parsed as BoulderState
   } catch {
@@ -67,6 +70,25 @@ export function appendSessionId(directory: string, sessionId: string): BoulderSt
   }
 
   return state
+}
+
+export function appendAtlasPlanOverride(
+  directory: string,
+  overrideRecord: AtlasPlanOverrideRecord,
+): BoulderState | null {
+  const state = readBoulderState(directory)
+  if (!state) return null
+
+  if (!Array.isArray(state.atlas_overrides)) {
+    state.atlas_overrides = []
+  }
+
+  state.atlas_overrides.push(overrideRecord)
+  if (writeBoulderState(directory, state)) {
+    return state
+  }
+
+  return null
 }
 
 export function clearBoulderState(directory: string): boolean {
@@ -164,6 +186,7 @@ export function createBoulderState(
     started_at: new Date().toISOString(),
     session_ids: [sessionId],
     plan_name: getPlanName(planPath),
+    atlas_overrides: [],
     ...(agent !== undefined ? { agent } : {}),
     ...(worktreePath !== undefined ? { worktree_path: worktreePath } : {}),
   }

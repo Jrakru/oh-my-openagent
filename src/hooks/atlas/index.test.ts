@@ -863,6 +863,12 @@ override reason: backend cross-cutting changes require deeper reasoning`,
       expect(decisions).toContain("Actual category: `deep`")
       expect(decisions).toContain("Planned wave: `Wave 1`")
       expect(decisions).toContain("Reason: backend cross-cutting changes require deeper reasoning")
+      expect(decisions).toContain("Correction injected: no")
+      const boulderState = readBoulderState(TEST_DIR)
+      expect(boulderState?.atlas_overrides).toHaveLength(1)
+      expect(boulderState?.atlas_overrides?.[0]?.planned_category).toBe("unspecified-high")
+      expect(boulderState?.atlas_overrides?.[0]?.actual_category).toBe("deep")
+      expect(boulderState?.atlas_overrides?.[0]?.correction_injected).toBeUndefined()
 
       cleanupMessageStorage(sessionID)
     })
@@ -909,6 +915,69 @@ override reason: deeper audit required`,
       expect(output.args.category).toBe("deep")
       expect(output.args.prompt).toContain("STRUCTURED EXECUTION CONTRACT")
       expect(output.args.prompt).toContain("Atlas declared an override reason")
+
+      cleanupMessageStorage(sessionID)
+    })
+
+    test("should inject correction path and persist typed override when prompt task is outside next-task set", async () => {
+      const sessionID = "session-correction-test"
+      setupMessageStorage(sessionID, "atlas")
+
+      const planPath = join(TEST_DIR, ".sisyphus", "plans", "structured-plan.md")
+      mkdirSync(join(TEST_DIR, ".sisyphus", "plans"), { recursive: true })
+      writeFileSync(planPath, `# Plan
+
+## Parallel Execution Graph
+
+Wave 1:
+└── Task 1: API
+
+## TODOs
+
+- [ ] 1. API
+
+  **Recommended Agent Profile**:
+  - Category: \`unspecified-high\`
+
+  **Parallelization**: Can Parallel: YES | Wave 1
+
+- [ ] 2. Docs
+`)
+
+      writeBoulderState(TEST_DIR, {
+        active_plan: planPath,
+        started_at: "2026-01-02T10:00:00Z",
+        session_ids: [sessionID],
+        plan_name: "structured-plan",
+      })
+
+      const hook = createAtlasHook(createMockPluginInput())
+      const output = {
+        args: {
+          category: "quick",
+          prompt: `## 1. TASK
+2. Docs
+
+## 2. EXPECTED OUTCOME
+- [ ] update docs`,
+        },
+      }
+
+      await hook["tool.execute.before"]({ tool: "task", sessionID }, output)
+
+      expect(output.args.prompt).toContain("STRUCTURED EXECUTION CORRECTION")
+      expect(output.args.prompt).toContain("Allowed next task ids: `1`")
+      expect(output.args.prompt).toContain("Required default task: `1. API`")
+
+      const boulderState = readBoulderState(TEST_DIR)
+      expect(boulderState?.atlas_overrides).toHaveLength(1)
+      expect(boulderState?.atlas_overrides?.[0]?.prompt_task_id).toBe("2")
+      expect(boulderState?.atlas_overrides?.[0]?.correction_injected).toBe(true)
+
+      const decisionsPath = join(TEST_DIR, ".sisyphus", "notepads", "structured-plan", "decisions.md")
+      const decisions = readFileSync(decisionsPath, "utf-8")
+      expect(decisions).toContain("Prompt task: `2`")
+      expect(decisions).toContain("Correction injected: yes")
 
       cleanupMessageStorage(sessionID)
     })

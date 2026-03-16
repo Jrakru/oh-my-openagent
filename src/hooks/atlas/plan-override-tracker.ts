@@ -1,6 +1,6 @@
 import { appendFileSync, existsSync, mkdirSync } from "node:fs"
 import { dirname, join } from "node:path"
-import { readBoulderState, readPlanExecutionSummary } from "../../features/boulder-state"
+import { appendAtlasPlanOverride, readBoulderState, readPlanExecutionSummary } from "../../features/boulder-state"
 
 export function extractExplicitOverrideReason(prompt: string): string | undefined {
   const patterns = [
@@ -40,6 +40,7 @@ export function resolveAtlasPlannedTaskContext(input: {
 }): null | {
   planName: string
   nextWaveId?: string
+  nextTaskIds: string[]
   promptTaskId?: string
   explicitOverrideReason?: string
   plannedTask: {
@@ -67,6 +68,7 @@ export function resolveAtlasPlannedTaskContext(input: {
   return {
     planName: boulderState.plan_name,
     ...(summary.nextWaveId ? { nextWaveId: summary.nextWaveId } : {}),
+    nextTaskIds: summary.nextTasks.map((task) => task.id),
     ...(promptTaskId ? { promptTaskId } : {}),
     ...(extractExplicitOverrideReason(prompt) ? { explicitOverrideReason: extractExplicitOverrideReason(prompt) } : {}),
     plannedTask,
@@ -79,6 +81,7 @@ export function trackAtlasPlanOverride(input: {
   category?: string
   subagentType?: string
   prompt?: string
+  correctionInjected?: boolean
 }): boolean {
   const prompt = input.prompt ?? ""
   const boulderState = readBoulderState(input.directory)
@@ -118,8 +121,22 @@ export function trackAtlasPlanOverride(input: {
     `- Planned wave: ${plannedWave ? `\`${plannedWave}\`` : "`unspecified`"}`,
     `- Actual wave: ${actualWave ? `\`${actualWave}\`` : "`unspecified`"}`,
     `- Reason: ${reason}`,
+    `- Correction injected: ${input.correctionInjected ? "yes" : "no"}`,
     "",
   ]
+
+  appendAtlasPlanOverride(input.directory, {
+    created_at: new Date().toISOString(),
+    planned_task_id: plannedTask.id,
+    planned_task_title: plannedTask.title,
+    ...(promptTaskId ? { prompt_task_id: promptTaskId } : {}),
+    ...(plannedCategory ? { planned_category: plannedCategory } : {}),
+    ...(actualCategory ? { actual_category: actualCategory } : {}),
+    ...(plannedWave ? { planned_wave: plannedWave } : {}),
+    ...(actualWave ? { actual_wave: actualWave } : {}),
+    reason,
+    ...(input.correctionInjected ? { correction_injected: true } : {}),
+  })
 
   appendFileSync(decisionsPath, `${lines.join("\n")}\n`, "utf-8")
   return true

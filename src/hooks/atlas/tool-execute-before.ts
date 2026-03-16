@@ -41,6 +41,34 @@ If you override the planned task or category, state the reason explicitly in the
 </system-reminder>`
 }
 
+function buildStructuredCorrectionDirective(input: {
+  nextWaveId?: string
+  nextTaskIds: string[]
+  promptTaskId?: string
+  plannedTask: {
+    id: string
+    title: string
+    category?: string
+    wave?: string
+    section: "todo" | "final-wave"
+  }
+}): string {
+  const allowedTaskList = input.nextTaskIds.map((id) => `\`${id}\``).join(", ")
+
+  return `<system-reminder>
+**STRUCTURED EXECUTION CORRECTION**
+
+You are delegating a task that does not match the parsed next-task contract.
+
+- Prompt task: ${input.promptTaskId ? `\`${input.promptTaskId}\`` : "`unknown`"}
+- Allowed next task ids: ${allowedTaskList}
+- Required default task: \`${input.plannedTask.id}. ${input.plannedTask.title}\`
+${input.nextWaveId ? `- Required wave: \`${input.nextWaveId}\`` : ""}
+
+Correct the delegation to the required next task, OR include an explicit override reason in the prompt.
+</system-reminder>`
+}
+
 export function createToolExecuteBeforeHandler(input: {
   ctx: PluginInput
   pendingFilePaths: Map<string, string>
@@ -100,6 +128,13 @@ export function createToolExecuteBeforeHandler(input: {
       if (plannedContext && (!prompt || !prompt.includes("STRUCTURED EXECUTION CONTRACT"))) {
         directives.push(buildStructuredExecutionDirective(plannedContext))
       }
+      const correctionInjected = Boolean(
+        plannedContext?.promptTaskId
+          && !plannedContext.nextTaskIds.includes(plannedContext.promptTaskId),
+      )
+      if (plannedContext && correctionInjected) {
+        directives.push(buildStructuredCorrectionDirective(plannedContext))
+      }
       if (prompt && !prompt.includes(SYSTEM_DIRECTIVE_PREFIX)) {
         directives.push(`<system-reminder>${SINGLE_TASK_DIRECTIVE}</system-reminder>`)
       }
@@ -121,6 +156,7 @@ export function createToolExecuteBeforeHandler(input: {
         category,
         subagentType,
         prompt,
+        correctionInjected,
       })
       if (tracked) {
         log(`[${HOOK_NAME}] Recorded Atlas plan override`, {
