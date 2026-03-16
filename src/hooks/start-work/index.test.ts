@@ -401,5 +401,23 @@ describe("start-work hook", () => {
       expect(updateSpy).toHaveBeenCalledWith("ses-prometheus-to-sisyphus", "atlas")
       updateSpy.mockRestore()
     })
+
+    test("should stamp the outgoing message with Atlas so follow-up events keep the handoff", async () => {
+      // given
+      const hook = createStartWorkHook(createMockPluginInput())
+      const output = {
+        message: {},
+        parts: [{ type: "text", text: "<session-context></session-context>" }],
+      }
+
+      // when
+      await hook["chat.message"](
+        { sessionID: "ses-prometheus-to-atlas" },
+        output
+      )
+
+      // then
+      expect(output.message.agent).toBe("Atlas (Plan Executor)")
+    })
   })
 })

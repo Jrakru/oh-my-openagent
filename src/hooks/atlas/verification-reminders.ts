@@ -51,22 +51,17 @@ Read(".sisyphus/plans/${planName}.md")
 Count exactly: how many \`- [ ]\` remain? How many \`- [x]\` completed?
 This is YOUR ground truth. Use it to decide what comes next.
 
-**STEP 7: MARK COMPLETION IN PLAN FILE (IMMEDIATELY)**
+**STEP 7: UPDATE PLAN STATUS ONLY (IMMEDIATELY)**
 
 RIGHT NOW - Do not delay. Verification passed → Mark IMMEDIATELY.
 
 Update the plan file \`.sisyphus/plans/${planName}.md\`:
-- Change \`- [ ]\` to \`- [x]\` for the completed task
-- Use \`Edit\` tool to modify the checkbox
+- Allowed: change \`- [ ]\` to \`- [x]\` for the verified completed task
+- Forbidden: rewrite task wording, add/remove/reorder tasks, change dependencies, or change acceptance criteria
 
 **DO THIS BEFORE ANYTHING ELSE. Unmarked = Untracked = Lost progress.**
 
-**STEP 8: COMMIT ATOMIC UNIT**
-
-- Stage ONLY the verified changes
-- Commit with clear message describing what was done
-
-**STEP 9: PROCEED TO NEXT TASK**
+**STEP 8: PROCEED TO NEXT TASK**
 
 - Read the plan file AGAIN to identify the next \`- [ ]\` task
 - Start immediately - DO NOT STOP
