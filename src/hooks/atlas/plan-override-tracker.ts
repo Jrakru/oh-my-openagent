@@ -2,7 +2,7 @@ import { appendFileSync, existsSync, mkdirSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { readBoulderState, readPlanExecutionSummary } from "../../features/boulder-state"
 
-function extractExplicitOverrideReason(prompt: string): string | undefined {
+export function extractExplicitOverrideReason(prompt: string): string | undefined {
   const patterns = [
     /override reason:\s*(.+)/i,
     /reason for override:\s*(.+)/i,
@@ -19,7 +19,7 @@ function extractExplicitOverrideReason(prompt: string): string | undefined {
   return undefined
 }
 
-function extractTaskIdFromPrompt(prompt: string): string | undefined {
+export function extractTaskIdFromPrompt(prompt: string): string | undefined {
   const sectionMatch = prompt.match(/##\s*1\.\s*TASK[\s\S]*?(?:\n([^\n]+))/i)
   const candidate = sectionMatch?.[1]?.trim() ?? prompt.split(/\r?\n/).find((line) => /\b[A-Za-z0-9-]+\.\s+/.test(line))?.trim()
   const idMatch = candidate?.match(/\b([A-Za-z0-9-]+)\.\s+/)
@@ -33,20 +33,30 @@ function ensureFile(filePath: string): void {
   }
 }
 
-export function trackAtlasPlanOverride(input: {
+export function resolveAtlasPlannedTaskContext(input: {
   directory: string
   sessionID?: string
-  category?: string
-  subagentType?: string
   prompt?: string
-}): boolean {
-  if (!input.sessionID) return false
+}): null | {
+  planName: string
+  nextWaveId?: string
+  promptTaskId?: string
+  explicitOverrideReason?: string
+  plannedTask: {
+    id: string
+    title: string
+    category?: string
+    wave?: string
+    section: "todo" | "final-wave"
+  }
+} {
+  if (!input.sessionID) return null
 
   const boulderState = readBoulderState(input.directory)
-  if (!boulderState) return false
+  if (!boulderState) return null
 
   const summary = readPlanExecutionSummary(boulderState.active_plan)
-  if (!summary || summary.nextTasks.length === 0) return false
+  if (!summary || summary.nextTasks.length === 0) return null
 
   const prompt = input.prompt ?? ""
   const promptTaskId = extractTaskIdFromPrompt(prompt)
@@ -54,10 +64,38 @@ export function trackAtlasPlanOverride(input: {
     ? summary.nextTasks.find((task) => task.id === promptTaskId) ?? summary.nextTasks[0]
     : summary.nextTasks[0]
 
+  return {
+    planName: boulderState.plan_name,
+    ...(summary.nextWaveId ? { nextWaveId: summary.nextWaveId } : {}),
+    ...(promptTaskId ? { promptTaskId } : {}),
+    ...(extractExplicitOverrideReason(prompt) ? { explicitOverrideReason: extractExplicitOverrideReason(prompt) } : {}),
+    plannedTask,
+  }
+}
+
+export function trackAtlasPlanOverride(input: {
+  directory: string
+  sessionID?: string
+  category?: string
+  subagentType?: string
+  prompt?: string
+}): boolean {
+  const prompt = input.prompt ?? ""
+  const boulderState = readBoulderState(input.directory)
+  if (!boulderState) return false
+
+  const summary = readPlanExecutionSummary(boulderState.active_plan)
+  if (!summary || summary.nextTasks.length === 0) return false
+
+  const context = resolveAtlasPlannedTaskContext(input)
+  if (!context) return false
+
+  const { plannedTask, promptTaskId, nextWaveId } = context
+
   const plannedCategory = plannedTask.category
   const actualCategory = input.category ?? input.subagentType
-  const actualWave = plannedTask.wave ?? summary.nextWaveId
-  const plannedWave = plannedTask.wave ?? summary.nextWaveId
+  const actualWave = plannedTask.wave ?? nextWaveId
+  const plannedWave = plannedTask.wave ?? nextWaveId
 
   const taskIdMismatch = Boolean(promptTaskId && !summary.nextTasks.some((task) => task.id === promptTaskId))
   const categoryMismatch = Boolean(plannedCategory && actualCategory && plannedCategory !== actualCategory)
@@ -67,7 +105,7 @@ export function trackAtlasPlanOverride(input: {
     return false
   }
 
-  const reason = extractExplicitOverrideReason(prompt) ?? "No explicit override reason provided"
+  const reason = context.explicitOverrideReason ?? "No explicit override reason provided"
   const decisionsPath = join(input.directory, ".sisyphus", "notepads", boulderState.plan_name, "decisions.md")
   ensureFile(decisionsPath)
 

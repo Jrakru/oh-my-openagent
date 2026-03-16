@@ -755,6 +755,61 @@ describe("atlas hook", () => {
   })
 
   describe("tool.execute.before handler", () => {
+    test("should inject structured execution contract and planned category into delegated task prompt", async () => {
+      // given
+      const sessionID = "session-structured-before-test"
+      setupMessageStorage(sessionID, "atlas")
+
+      const planPath = join(TEST_DIR, ".sisyphus", "plans", "structured-plan.md")
+      mkdirSync(join(TEST_DIR, ".sisyphus", "plans"), { recursive: true })
+      writeFileSync(planPath, `# Plan
+
+## Parallel Execution Graph
+
+Wave 1:
+└── Task 1: API
+
+## TODOs
+
+- [ ] 1. API
+
+  **Recommended Agent Profile**:
+  - Category: \`unspecified-high\`
+
+  **Parallelization**: Can Parallel: YES | Wave 1
+`)
+
+      writeBoulderState(TEST_DIR, {
+        active_plan: planPath,
+        started_at: "2026-01-02T10:00:00Z",
+        session_ids: [sessionID],
+        plan_name: "structured-plan",
+      })
+
+      const hook = createAtlasHook(createMockPluginInput())
+      const output = {
+        args: {
+          prompt: `## 1. TASK
+1. API
+
+## 2. EXPECTED OUTCOME
+- [ ] add endpoint`,
+        },
+      }
+
+      // when
+      await hook["tool.execute.before"]({ tool: "task", sessionID }, output)
+
+      // then
+      expect(output.args.category).toBe("unspecified-high")
+      expect(output.args.prompt).toContain("STRUCTURED EXECUTION CONTRACT")
+      expect(output.args.prompt).toContain("Next task: `1. API`")
+      expect(output.args.prompt).toContain("category=`unspecified-high`")
+      expect(output.args.prompt).toContain("wave=`Wave 1`")
+
+      cleanupMessageStorage(sessionID)
+    })
+
     test("should record structured override when delegated category diverges from next planned task", async () => {
       // given
       const sessionID = "session-override-test"
@@ -808,6 +863,52 @@ override reason: backend cross-cutting changes require deeper reasoning`,
       expect(decisions).toContain("Actual category: `deep`")
       expect(decisions).toContain("Planned wave: `Wave 1`")
       expect(decisions).toContain("Reason: backend cross-cutting changes require deeper reasoning")
+
+      cleanupMessageStorage(sessionID)
+    })
+
+    test("should preserve explicit category while still injecting structured contract guidance", async () => {
+      // given
+      const sessionID = "session-explicit-category-test"
+      setupMessageStorage(sessionID, "atlas")
+
+      const planPath = join(TEST_DIR, ".sisyphus", "plans", "structured-plan.md")
+      mkdirSync(join(TEST_DIR, ".sisyphus", "plans"), { recursive: true })
+      writeFileSync(planPath, `# Plan
+
+## TODOs
+
+- [ ] 1. API
+
+  **Recommended Agent Profile**:
+  - Category: \`unspecified-high\`
+`)
+
+      writeBoulderState(TEST_DIR, {
+        active_plan: planPath,
+        started_at: "2026-01-02T10:00:00Z",
+        session_ids: [sessionID],
+        plan_name: "structured-plan",
+      })
+
+      const hook = createAtlasHook(createMockPluginInput())
+      const output = {
+        args: {
+          category: "deep",
+          prompt: `## 1. TASK
+1. API
+
+override reason: deeper audit required`,
+        },
+      }
+
+      // when
+      await hook["tool.execute.before"]({ tool: "task", sessionID }, output)
+
+      // then
+      expect(output.args.category).toBe("deep")
+      expect(output.args.prompt).toContain("STRUCTURED EXECUTION CONTRACT")
+      expect(output.args.prompt).toContain("Atlas declared an override reason")
 
       cleanupMessageStorage(sessionID)
     })
